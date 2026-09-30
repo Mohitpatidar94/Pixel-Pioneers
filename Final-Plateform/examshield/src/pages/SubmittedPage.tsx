@@ -7,6 +7,12 @@ import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { useSession } from "../context/SessionContext";
 import { securityEventBus } from "../lib/securityEventBus";
+import {
+  integrityFingerprintEngine,
+  computeIntegritySignalScore,
+  scoreToRiskLabel,
+} from "../lib/IntegrityFingerprintEngine";
+import { getScoreBand } from "../types/proctoring";
 import type { IntegritySummary, EventSeverity } from "../types";
 
 function buildSummary(
@@ -14,21 +20,18 @@ function buildSummary(
   examId: string,
   studentName: string,
   submittedAt: string
-): IntegritySummary {
+): IntegritySummary & { integrityScore: number; patternCount: number } {
   const events = securityEventBus.getEvents(sessionId);
+  const patterns = integrityFingerprintEngine.analyseSession(events);
+  const integrityScore = computeIntegritySignalScore(events, patterns);
 
   const count = (sev: EventSeverity) => events.filter((e) => e.severity === sev).length;
-  const high = count("HIGH");
+  const high   = count("HIGH");
   const medium = count("MEDIUM");
-  const low = count("LOW");
-  const info = count("INFO");
+  const low    = count("LOW");
+  const info   = count("INFO");
 
-  let risk: IntegritySummary["overallRisk"] = "CLEAR";
-  if (high > 0) risk = "HIGH";
-  else if (medium >= 3) risk = "HIGH";
-  else if (medium >= 1) risk = "MEDIUM";
-  else if (low >= 5) risk = "MEDIUM";
-  else if (low >= 1) risk = "LOW";
+  const risk = scoreToRiskLabel(integrityScore);
 
   return {
     sessionId,
@@ -42,6 +45,8 @@ function buildSummary(
     infoCount: info,
     overallRisk: risk,
     events,
+    integrityScore,
+    patternCount: patterns.length,
   };
 }
 
@@ -148,6 +153,28 @@ export function SubmittedPage() {
           <Card padding="lg">
             <h2 className="text-base font-semibold text-[#1f2328] mb-4">Integrity Summary</h2>
 
+            {/* ISS Score Bar */}
+            {(() => {
+              const band = getScoreBand(summary.integrityScore);
+              return (
+                <div className="p-4 rounded-lg bg-[#f7f8fa] border border-[#e5e7eb] mb-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs text-[#57606a] font-medium">Integrity Signal Score</span>
+                    <span className="text-sm font-bold" style={{ color: band.color }}>
+                      {summary.integrityScore} — {band.label}
+                    </span>
+                  </div>
+                  <div className="h-2.5 w-full bg-[#e5e7eb] rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${summary.integrityScore}%`, backgroundColor: band.color }} />
+                  </div>
+                  <p className="text-xs text-[#57606a] mt-1.5">{band.description}</p>
+                  <p className="text-xs text-[#9ca3af] mt-1">
+                    Score is an assistive signal for evaluator review — not proof of misconduct.
+                  </p>
+                </div>
+              );
+            })()}
+
             {/* Overall risk */}
             <div className="flex items-center justify-between p-4 rounded-lg bg-[#f7f8fa] border border-[#e5e7eb] mb-5">
               <div>
@@ -155,6 +182,7 @@ export function SubmittedPage() {
                 <p className="text-sm font-semibold text-[#1f2328] mt-0.5">
                   {riskLabel[summary.overallRisk]}
                 </p>
+                <p className="text-xs text-[#57606a] mt-0.5">{summary.patternCount} correlated pattern{summary.patternCount !== 1 ? "s" : ""} detected</p>
               </div>
               <Badge variant={riskBadgeVariant[summary.overallRisk]}>
                 {summary.overallRisk}

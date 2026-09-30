@@ -7,6 +7,7 @@
 
 export type SecurityEventType =
   | "FACE_NOT_DETECTED"
+  | "FACE_PRESENT"
   | "MULTIPLE_FACES"
   | "GAZE_DEVIATION"
   | "HEAD_POSE_DEVIATION"
@@ -17,6 +18,8 @@ export type SecurityEventType =
   | "RIGHT_CLICK_ATTEMPT"
   | "WINDOW_BLUR"
   | "KEYBOARD_SHORTCUT"
+  | "CAMERA_BLOCKED"
+  | "LOW_VISIBILITY"
   | "SYSTEM_CHECK_FAILED"
   | "SESSION_STARTED"
   | "SESSION_SUBMITTED";
